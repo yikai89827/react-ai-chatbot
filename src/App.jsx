@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 function App() {
   const [messages, setMessages] = useState([]);
@@ -15,7 +16,7 @@ function App() {
     scrollToBottom();
   }, [messages]);
 
-  // 发送消息到通义千问API
+  // 发送消息到代理服务器
   const sendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
 
@@ -25,26 +26,29 @@ function App() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('https://ark.cn-beijing.volces.com/api/v3/chat/completions', {
+      const response = await fetch('http://localhost:3001/api/chat', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_QWEN_API_KEY}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'qwen-turbo',
           messages: [...messages, { role: 'user', content: userMessage }],
           temperature: 0.7
         })
       });
 
       if (!response.ok) {
-        throw new Error('API请求失败');
+        const errorData = await response.json();
+        throw new Error(`API请求失败: ${response.status} - ${errorData.error || errorData.message}`);
       }
 
       const data = await response.json();
-      const assistantMessage = data.choices[0].message.content;
-      setMessages(prev => [...prev, { role: 'assistant', content: assistantMessage }]);
+      if (data.output && data.output.text) {
+        const assistantMessage = data.output.text;
+        setMessages(prev => [...prev, { role: 'assistant', content: assistantMessage }]);
+      } else {
+        throw new Error('API响应格式错误');
+      }
     } catch (error) {
       setMessages(prev => [...prev, { role: 'assistant', content: `错误: ${error.message}` }]);
     } finally {
@@ -68,7 +72,13 @@ function App() {
       <div className="chat-messages">
         {messages.map((message, index) => (
           <div key={index} className={`message ${message.role}`}>
-            <div className="message-content">{message.content}</div>
+            <div className="message-content">
+              {message.role === 'assistant' ? (
+                <ReactMarkdown>{message.content}</ReactMarkdown>
+              ) : (
+                message.content
+              )}
+            </div>
           </div>
         ))}
         {isLoading && (
