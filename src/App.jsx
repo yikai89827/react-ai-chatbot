@@ -5,6 +5,8 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [hoveredText, setHoveredText] = useState('');
+  const [suggestions, setSuggestions] = useState({});
   const messagesEndRef = useRef(null);
 
   // 滚动到最新消息
@@ -46,6 +48,9 @@ function App() {
       if (data.output && data.output.text) {
         const assistantMessage = data.output.text;
         setMessages(prev => [...prev, { role: 'assistant', content: assistantMessage }]);
+        
+        // 提取建议关键词
+        extractSuggestions(assistantMessage);
       } else {
         throw new Error('API响应格式错误');
       }
@@ -64,6 +69,73 @@ function App() {
     }
   };
 
+  // 提取AI回复中的建议关键词
+  const extractSuggestions = (text) => {
+    const foundSuggestions = {};
+    
+    // 查找"如果需要"或"需要"后面的内容
+    const needPatterns = [
+      /如果需要([^。，！？\n]*？)/g,
+      /需要([^。，！？\n]*？)/g,
+      /如果需要([^。，！？\n]*。)/g,
+      /需要([^。，！？\n]*。)/g
+    ];
+
+    // 从"如果需要"或"需要"后面的内容中提取关键词
+    needPatterns.forEach(pattern => {
+      const matches = text.matchAll(pattern);
+      if (matches) {
+        matches.forEach(match => {
+          const content = match[1];
+          
+          // 提取加粗文本 **text**
+          const boldMatches = content.matchAll(/\*\*([^*]+)\*\*/g);
+          if (boldMatches) {
+            boldMatches.forEach(boldMatch => {
+              foundSuggestions[boldMatch[1]] = true;
+            });
+          }
+          
+          // 提取引号内容 "text" 或 'text'
+          const quoteMatches = content.matchAll(/["']([^"']+)["']/g);
+          if (quoteMatches) {
+            quoteMatches.forEach(quoteMatch => {
+              foundSuggestions[quoteMatch[1]] = true;
+            });
+          }
+        });
+      }
+    });
+
+    setSuggestions(foundSuggestions);
+  };
+
+  // 处理点击建议关键词自动发送消息
+  const handleSuggestionClick = (text) => {
+    setInputValue(text);
+    setTimeout(() => {
+      sendMessage();
+    }, 100);
+  };
+
+  // 自定义粗体渲染组件
+  const BoldRenderer = ({ children }) => {
+    const text = children[0];
+    const isSuggestion = suggestions[text];
+    
+    return (
+      <span 
+        className={isSuggestion ? 'clickable-bold' : ''}
+        onClick={isSuggestion ? () => handleSuggestionClick(text) : undefined}
+        onMouseEnter={isSuggestion ? () => setHoveredText(text) : undefined}
+        onMouseLeave={isSuggestion ? () => setHoveredText('') : undefined}
+        title={isSuggestion ? `点击发送给AI: ${text}` : ''}
+      >
+        {children}
+      </span>
+    );
+  };
+
   return (
     <div className="chat-container">
       <div className="chat-header">
@@ -74,7 +146,13 @@ function App() {
           <div key={index} className={`message ${message.role}`}>
             <div className="message-content">
               {message.role === 'assistant' ? (
-                <ReactMarkdown>{message.content}</ReactMarkdown>
+                <ReactMarkdown
+                  components={{
+                    strong: BoldRenderer
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
               ) : (
                 message.content
               )}
@@ -88,6 +166,11 @@ function App() {
         )}
         <div ref={messagesEndRef} />
       </div>
+      {hoveredText && (
+        <div className="hover-tooltip">
+          💡 点击发送给AI: {hoveredText}
+        </div>
+      )}
       <div className="chat-input">
         <textarea
           value={inputValue}
