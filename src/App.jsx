@@ -139,7 +139,7 @@ function App() {
   return (
     <div className="chat-container">
       <div className="chat-header">
-        <h1>AI聊天机器人</h1>
+        <h1>易凯的AI聊天机器人</h1>
       </div>
       <div className="chat-messages">
         {messages.map((message, index) => (

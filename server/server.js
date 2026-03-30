@@ -39,8 +39,7 @@ app.post('/api/chat', async (req, res) => {
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          'X-DashScope-Async': 'enable'
+          'Authorization': `Bearer ${apiKey}`
         },
         timeout: 30000 // 30秒超时
       }
